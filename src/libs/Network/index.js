@@ -1,14 +1,14 @@
 import _ from 'underscore';
 import lodashGet from 'lodash/get';
 import Onyx from 'react-native-onyx';
-import HttpUtils from './HttpUtils';
-import ONYXKEYS from '../ONYXKEYS';
-import * as ActiveClientManager from './ActiveClientManager';
-import CONST from '../CONST';
-import createCallback from './createCallback';
-import * as NetworkRequestQueue from './actions/NetworkRequestQueue';
+import HttpUtils from '../HttpUtils';
+import ONYXKEYS from '../../ONYXKEYS';
+import * as ActiveClientManager from '../ActiveClientManager';
+import CONST from '../../CONST';
+import createCallback from '../createCallback';
+import * as NetworkRequestQueue from '../actions/NetworkRequestQueue';
+import * as NetworkStore from './NetworkStore';
 
-let isReady = false;
 let isOffline = false;
 let isQueuePaused = false;
 let persistedRequestsQueueRunning = false;
@@ -124,13 +124,6 @@ Onyx.connect({
 });
 
 /**
- * @param {Boolean} val
- */
-function setIsReady(val) {
-    isReady = val;
-}
-
-/**
  * Checks to see if a request can be made.
  *
  * @param {Object} request
@@ -141,7 +134,7 @@ function setIsReady(val) {
  * @return {Boolean}
  */
 function canMakeRequest(request) {
-    if (!isReady) {
+    if (!NetworkStore.isReady()) {
         onRequestSkipped({command: request.command, type: request.type});
         return false;
     }
@@ -366,7 +359,6 @@ export {
     registerResponseHandler,
     registerErrorHandler,
     registerRequestHandler,
-    setIsReady,
     registerRequestSkippedHandler,
     registerLogHandler,
     registerConnectionCheckCallback,
