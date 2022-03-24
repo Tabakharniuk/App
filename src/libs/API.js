@@ -102,6 +102,11 @@ Network.registerResponseHandler((queuedRequest, response) => {
         return;
     }
 
+    // Persisted requests will not have any resolve method
+    if (!queuedRequest.resolve) {
+        return;
+    }
+
     // All other jsonCode besides 407 are treated as a successful response and must be handled in the .then() of the API method
     queuedRequest.resolve(response);
 });

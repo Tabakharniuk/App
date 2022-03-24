@@ -68,16 +68,12 @@ function processPersistedRequestsQueue() {
             } else {
                 getLogger().info('Persisted optimistic request returned a valid jsonCode. Not retrying.');
             }
-            onResponse({
-                ...request,
-                resolve: request.resolve || Promise.resolve(),
-                reject: request.reject || Promise.resolve(),
-            }, response);
+            onResponse(request, response);
             NetworkRequestQueue.removeRetryableRequest(request);
         })
         .catch((error) => {
             // If we are catching a known network error like "Failed to fetch" allow this request to be retried if we have retries left
-            if (error.message === CONST.NETWORK_ERROR.FAILED_TO_FETCH) {
+            if (error.message === CONST.ERROR.FAILED_TO_FETCH) {
                 const retryCount = NetworkRequestQueue.incrementRetries(request);
                 getLogger().info('Persisted request failed', false, {retryCount, command: request.command, error: error.message});
                 if (retryCount >= CONST.NETWORK.MAX_REQUEST_RETRIES) {
@@ -259,7 +255,7 @@ function processNetworkRequestQueue() {
                 recheckConnectivity();
 
                 // Retry and request that returns a "Failed to fetch" error. Very common if a user is offline or experiencing an unlikely scenario.
-                if (error.message === CONST.NETWORK_ERROR.FAILED_TO_FETCH) {
+                if (error.message === CONST.ERROR.FAILED_TO_FETCH) {
                     // When the request did not reach its destination add it back the queue to be retried if we can
                     const shouldRetry = lodashGet(queuedRequest, 'data.shouldRetry');
                     if (shouldRetry) {

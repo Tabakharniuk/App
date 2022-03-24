@@ -275,11 +275,11 @@ test('retry network request if connection is lost while request is running', () 
     const xhr = jest.spyOn(HttpUtils, 'xhr')
         .mockImplementationOnce(() => {
             Onyx.merge(ONYXKEYS.NETWORK, {isOffline: true});
-            return Promise.reject(new Error('Network request failed'));
+            return Promise.reject(new Error(CONST.ERROR.FAILED_TO_FETCH));
         })
         .mockResolvedValue({jsonCode: 200, fromRetriedResult: true});
 
-    // Given a regular "retriable" request (that is bound to fail)
+    // Given a regular "retryable" request (that is bound to fail)
     const promise = Network.post('Get');
 
     return waitForPromisesToResolve()
@@ -356,7 +356,7 @@ test('requests should resume when we are online', () => {
         });
 });
 
-test('persisted request should not be cleared unit a backend response', () => {
+test('persisted request should not be cleared until a backend response occurs', () => {
     // We're setting up xhr handler that will resolve calls programmatically
     const xhrCalls = [];
     const promises = [];
@@ -396,7 +396,7 @@ test('persisted request should not be cleared unit a backend response', () => {
             ]);
 
             // When a request fails it should be retried
-            xhrCalls[1].resolve({jsonCode: 401});
+            xhrCalls[1].reject(new Error(CONST.ERROR.FAILED_TO_FETCH));
             return waitForPromisesToResolve();
         })
         .then(() => {
@@ -405,7 +405,7 @@ test('persisted request should not be cleared unit a backend response', () => {
                 expect.objectContaining({command: 'mock command', data: expect.objectContaining({param2: 'value2'})}),
             ]);
 
-            // Finally, after it succeeds the queue should be empty
+            // // Finally, after it succeeds the queue should be empty
             xhrCalls[2].resolve({jsonCode: 200});
             return waitForPromisesToResolve();
         })
@@ -417,7 +417,7 @@ test('persisted request should not be cleared unit a backend response', () => {
 test(`persisted request should be retried up to ${CONST.NETWORK.MAX_REQUEST_RETRIES} times`, () => {
     // We're setting up xhr handler that always returns an error response
     const xhr = jest.spyOn(HttpUtils, 'xhr')
-        .mockResolvedValue({jsonCode: 401});
+        .mockRejectedValue(new Error(CONST.ERROR.FAILED_TO_FETCH));
 
     // Given we have a request made while we're offline
     return Onyx.set(ONYXKEYS.NETWORK, {isOffline: true})
