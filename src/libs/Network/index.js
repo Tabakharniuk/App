@@ -258,6 +258,7 @@ function processNetworkRequestQueue() {
 
                 recheckConnectivity();
 
+                // Retry and request that returns a "Failed to fetch" error. Very common if a user is offline or experiencing an unlikely scenario.
                 if (error.message === CONST.NETWORK_ERROR.FAILED_TO_FETCH) {
                     // When the request did not reach its destination add it back the queue to be retried if we can
                     const shouldRetry = lodashGet(queuedRequest, 'data.shouldRetry');
