@@ -8,6 +8,9 @@ let authToken;
 let currentUserEmail;
 let networkReady = false;
 
+/**
+ * @param {Boolean} ready
+ */
 function setIsReady(ready) {
     networkReady = ready;
 }
@@ -37,22 +40,37 @@ Onyx.connect({
     },
 });
 
+/**
+ * @returns {String}
+ */
 function getAuthToken() {
     return authToken;
 }
 
+/**
+ * @param {String} newAuthToken
+ */
 function setAuthToken(newAuthToken) {
     authToken = newAuthToken;
 }
 
+/**
+ * @returns {Object}
+ */
 function getCredentials() {
     return credentials;
 }
 
+/**
+ * @returns {String}
+ */
 function getCurrentUserEmail() {
     return currentUserEmail;
 }
 
+/**
+ * @returns {Boolean}
+ */
 function isReady() {
     return networkReady;
 }

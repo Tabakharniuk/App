@@ -45,7 +45,7 @@ export default function enhanceParameters(command, parameters) {
     // and prevents interfering with the cookie authToken that Expensify classic uses.
     finalParameters.api_setCookie = false;
 
-    // Unless email is already set include current user's email in every request and the server logs
+    // Include current user's email in every request and the server logs
     finalParameters.email = lodashGet(parameters, 'email', NetworkStore.getCurrentUserEmail());
 
     return finalParameters;
