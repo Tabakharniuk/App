@@ -225,11 +225,8 @@ test('consecutive API calls eventually succeed when authToken is expired', () =>
 });
 
 test('retry network request if auth and credentials are not read from Onyx yet', () => {
-    // For this test we're having difficulty creating a situation where Onyx.connect() has not yet run
-    // because some Onyx.connect callbacks are already registered in API.js (which happens before this
-    // unit test is setup), so in order to test an scenario where the auth token and credentials hasn't
-    // been read from storage we set NetworkStore.setIsReady(false) and trigger an update in the Onyx.connect
-    // callbacks registered in API.js merging an empty object.
+    // In order to test an scenario where the auth token and credentials hasn't been read from storage we set
+    // NetworkStore.setIsReady(false) and set the session and credentials to "ready" the Network
 
     // Given a test user login and account ID
     const TEST_USER_LOGIN = 'test@testguy.com';
@@ -241,13 +238,12 @@ test('retry network request if auth and credentials are not read from Onyx yet',
     // Given initial state to Network
     NetworkStore.setIsReady(false);
 
-    // Given any initial value to trigger an update
-    Onyx.merge(ONYXKEYS.CREDENTIALS, {});
-    Onyx.merge(ONYXKEYS.SESSION, {});
+    // Given an initial value to trigger an update
+    Onyx.merge(ONYXKEYS.CREDENTIALS, {login: 'test-login'});
+    Onyx.merge(ONYXKEYS.SESSION, {authToken: 'test-auth-token'});
 
     // Given some mock functions to track the isReady
     // flag in Network and the http requests made
-    const spyNetworkSetIsReady = jest.spyOn(Network, 'setIsReady');
     const spyHttpUtilsXhr = jest.spyOn(HttpUtils, 'xhr').mockImplementation(() => Promise.resolve({}));
 
     // When we make an arbitrary request that can be retried
@@ -255,7 +251,7 @@ test('retry network request if auth and credentials are not read from Onyx yet',
     Session.fetchAccountDetails(TEST_USER_LOGIN);
     return waitForPromisesToResolve().then(() => {
         // Then we expect not having the Network ready and not making an http request
-        expect(spyNetworkSetIsReady).not.toHaveBeenCalled();
+        expect(NetworkStore.isReady()).toBe(false);
         expect(spyHttpUtilsXhr).not.toHaveBeenCalled();
 
         // When we resolve Onyx.connect callbacks
@@ -263,7 +259,7 @@ test('retry network request if auth and credentials are not read from Onyx yet',
 
         // Then we should expect call Network.setIsReady(true)
         // And We should expect not making an http request yet
-        expect(spyNetworkSetIsReady).toHaveBeenLastCalledWith(true);
+        expect(NetworkStore.isReady()).toBe(true);
         expect(spyHttpUtilsXhr).not.toHaveBeenCalled();
 
         // When we run processNetworkRequestQueue in the setInterval of Network.js

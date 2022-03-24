@@ -8,6 +8,7 @@ import CONST from '../../CONST';
 import createCallback from '../createCallback';
 import * as NetworkRequestQueue from '../actions/NetworkRequestQueue';
 import * as NetworkStore from './NetworkStore';
+import enhanceParameters from './enhanceParameters';
 
 let isOffline = false;
 let isQueuePaused = false;
@@ -15,11 +16,6 @@ let persistedRequestsQueueRunning = false;
 
 // Queue for network requests so we don't lose actions done by the user while offline
 let networkRequestQueue = [];
-
-// This is an optional function that this lib can be configured with (via registerParameterEnhancer())
-// that accepts all request parameters and returns a new copy of them. This allows other code to inject
-// parameters such as authTokens or CSRF tokens, etc.
-let enhanceParameters;
 
 // These handlers must be registered so we can process the request, response, and errors returned from the queue.
 // The first argument passed will be the queuedRequest object and the second will be either the parameters, response, or error.
@@ -39,9 +35,7 @@ const [recheckConnectivity, registerConnectionCheckCallback] = createCallback();
  * @returns {Promise}
  */
 function processRequest(request) {
-    const finalParameters = _.isFunction(enhanceParameters)
-        ? enhanceParameters(request.command, request.data)
-        : request.data;
+    const finalParameters = enhanceParameters(request.command, request.data);
 
     // If request is still in processing after this time, we might be offline
     const timerId = setTimeout(recheckConnectivity, CONST.NETWORK.MAX_PENDING_TIME_MS);
@@ -331,17 +325,6 @@ function unpauseRequestQueue() {
 }
 
 /**
- * Register a function that will accept all the parameters being sent in a request
- * and will return a new set of parameters to send instead. Useful for adding data to every request
- * like auth or CRSF tokens.
- *
- * @param {Function} callback
- */
-function registerParameterEnhancer(callback) {
-    enhanceParameters = callback;
-}
-
-/**
  * Clear the queue and cancels all pending requests
  * Non-cancellable requests like Log would not be cleared
  */
@@ -354,7 +337,6 @@ export {
     post,
     pauseRequestQueue,
     unpauseRequestQueue,
-    registerParameterEnhancer,
     clearRequestQueue,
     registerResponseHandler,
     registerErrorHandler,

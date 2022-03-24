@@ -1,9 +1,7 @@
 import _ from 'underscore';
 import lodashGet from 'lodash/get';
-import Onyx from 'react-native-onyx';
 import CONST from '../CONST';
 import CONFIG from '../CONFIG';
-import ONYXKEYS from '../ONYXKEYS';
 import getPlaidLinkTokenParameters from './getPlaidLinkTokenParameters';
 import redirectToSignIn from './actions/SignInRedirect';
 import isViaExpensifyCashNative from './isViaExpensifyCashNative';
@@ -13,59 +11,9 @@ import * as Network from './Network';
 import updateSessionAuthTokens from './actions/Session/updateSessionAuthTokens';
 import setSessionLoadingAndError from './actions/Session/setSessionLoadingAndError';
 import * as NetworkStore from './Network/NetworkStore';
+import enhanceParameters from './Network/enhanceParameters';
 
 let isAuthenticating;
-
-/**
- * Does this command require an authToken?
- *
- * @param {String} command
- * @return {Boolean}
- */
-function isAuthTokenRequired(command) {
-    return !_.contains([
-        'Log',
-        'Graphite_Timer',
-        'Authenticate',
-        'GetAccountStatus',
-        'SetPassword',
-        'User_SignUp',
-        'ResendValidateCode',
-        'ResetPassword',
-        'User_ReopenAccount',
-        'ValidateEmail',
-    ], command);
-}
-
-/**
- * Adds default values to our request data
- *
- * @param {String} command
- * @param {Object} parameters
- * @returns {Object}
- */
-function addDefaultValuesToParameters(command, parameters) {
-    const finalParameters = {...parameters};
-
-    if (isAuthTokenRequired(command) && !parameters.authToken) {
-        finalParameters.authToken = NetworkStore.getAuthToken();
-    }
-
-    finalParameters.referer = CONFIG.EXPENSIFY.EXPENSIFY_CASH_REFERER;
-
-    // This application does not save its authToken in cookies like the classic Expensify app.
-    // Setting api_setCookie to false will ensure that the Expensify API doesn't set any cookies
-    // and prevents interfering with the cookie authToken that Expensify classic uses.
-    finalParameters.api_setCookie = false;
-
-    // Unless email is already set include current user's email in every request and the server logs
-    finalParameters.email = lodashGet(parameters, 'email', currentUserEmail);
-
-    return finalParameters;
-}
-
-// Tie into the network layer to add auth token to the parameters of all requests
-Network.registerParameterEnhancer(addDefaultValuesToParameters);
 
 /**
  * Function used to handle expired auth tokens. It re-authenticates with the API and
@@ -91,7 +39,7 @@ function handleExpiredAuthToken(originalCommand, originalParameters, originalTyp
     return reauthenticate(originalCommand)
         .then(() => {
             // Now that the API is authenticated, make the original request again with the new authToken
-            const params = addDefaultValuesToParameters(originalCommand, originalParameters);
+            const params = enhanceParameters(originalCommand, originalParameters);
             return Network.post(originalCommand, params, originalType);
         })
         .catch(() => (
