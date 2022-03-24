@@ -63,7 +63,11 @@ function processPersistedRequestsQueue() {
 
     const tasks = _.map(persistedRequests, request => processRequest(request)
         .then((response) => {
-            getLogger().info('Persisted optimistic request returned a valid jsonCode. Not retrying.');
+            if (response.jsonCode === CONST.JSON_CODE.NOT_AUTHENTICATED) {
+                getLogger().info('Persisted optimistic request needs authentication');
+            } else {
+                getLogger().info('Persisted optimistic request returned a valid jsonCode. Not retrying.');
+            }
             onResponse({
                 ...request,
                 resolve: request.resolve || Promise.resolve(),
@@ -72,7 +76,7 @@ function processPersistedRequestsQueue() {
             NetworkRequestQueue.removeRetryableRequest(request);
         })
         .catch((error) => {
-            // If we are catching a known network error like "Failed to fetch" allow this request to be retried
+            // If we are catching a known network error like "Failed to fetch" allow this request to be retried if we have retries left
             if (error === CONST.NETWORK_ERROR.FAILED_TO_FETCH) {
                 const retryCount = NetworkRequestQueue.incrementRetries(request);
                 getLogger().info('Persisted request failed', false, {retryCount, command: request.command, error: error.message});
@@ -80,8 +84,12 @@ function processPersistedRequestsQueue() {
                     // Request failed too many times removing from persisted storage
                     NetworkRequestQueue.removeRetryableRequest(request);
                 }
+            } else if (error.name === CONST.ERROR.REQUEST_CANCELLED) {
+                getLogger().info('Persisted request was cancelled. Not retrying.');
+                onError(request);
+                NetworkRequestQueue.removeRetryableRequest(request);
             } else {
-                getLogger().alert(`${CONST.ERROR.ENSURE_BUGBOT} unknown error while retrying persisted request`, {
+                getLogger().alert(`${CONST.ERROR.ENSURE_BUGBOT} unknown error while retrying persisted request. Not retrying.`, {
                     command: request.command,
                     error: error.message,
                 });
