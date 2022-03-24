@@ -120,8 +120,10 @@ Network.registerErrorHandler((queuedRequest, error) => {
     // Set an error state and signify we are done loading
     setSessionLoadingAndError(false, 'Cannot connect to server');
 
-    // Reject the queued request with an API offline error so that the original caller can handle it.
-    queuedRequest.reject(new Error(CONST.ERROR.API_OFFLINE));
+    // Reject the queued request with an API offline error so that the original caller can handle it
+    if (queuedRequest.reject) {
+        queuedRequest.reject(new Error(CONST.ERROR.API_OFFLINE));
+    }
 });
 
 /**

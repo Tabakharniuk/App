@@ -77,7 +77,7 @@ function processPersistedRequestsQueue() {
         })
         .catch((error) => {
             // If we are catching a known network error like "Failed to fetch" allow this request to be retried if we have retries left
-            if (error === CONST.NETWORK_ERROR.FAILED_TO_FETCH) {
+            if (error.message === CONST.NETWORK_ERROR.FAILED_TO_FETCH) {
                 const retryCount = NetworkRequestQueue.incrementRetries(request);
                 getLogger().info('Persisted request failed', false, {retryCount, command: request.command, error: error.message});
                 if (retryCount >= CONST.NETWORK.MAX_REQUEST_RETRIES) {
@@ -250,27 +250,40 @@ function processNetworkRequestQueue() {
         processRequest(queuedRequest)
             .then(response => onResponse(queuedRequest, response))
             .catch((error) => {
+                // Cancelled requests should not be retried
+                if (error.name === CONST.ERROR.REQUEST_CANCELLED) {
+                    onError(queuedRequest, error);
+                    return;
+                }
+
                 recheckConnectivity();
 
-                // When the request did not reach its destination add it back the queue to be retried
-                const shouldRetry = lodashGet(queuedRequest, 'data.shouldRetry');
-                if (shouldRetry && error.name !== CONST.ERROR.REQUEST_CANCELLED) {
-                    const retryCount = NetworkRequestQueue.incrementRetries(queuedRequest);
-                    getLogger().info('A retryable request failed', false, {
-                        retryCount,
+                if (error.message === CONST.NETWORK_ERROR.FAILED_TO_FETCH) {
+                    // When the request did not reach its destination add it back the queue to be retried if we can
+                    const shouldRetry = lodashGet(queuedRequest, 'data.shouldRetry');
+                    if (shouldRetry) {
+                        const retryCount = NetworkRequestQueue.incrementRetries(queuedRequest);
+                        getLogger().info('A retryable request failed', false, {
+                            retryCount,
+                            command: queuedRequest.command,
+                            error: error.message,
+                        });
+
+                        if (retryCount < CONST.NETWORK.MAX_REQUEST_RETRIES) {
+                            networkRequestQueue.push(queuedRequest);
+                            return;
+                        }
+
+                        getLogger().info('Request was retried too many times with no success. No more retries left');
+                    }
+
+                    onError(queuedRequest, error);
+                } else {
+                    getLogger().alert(`${CONST.ERROR.ENSURE_BUGBOT} unknown error caught while processing request`, {
                         command: queuedRequest.command,
                         error: error.message,
                     });
-
-                    if (retryCount < CONST.NETWORK.MAX_REQUEST_RETRIES) {
-                        networkRequestQueue.push(queuedRequest);
-                        return;
-                    }
-
-                    getLogger().info('Request was retried too many times with no success. No more retries left');
                 }
-
-                onError(queuedRequest, error);
             });
     });
 
