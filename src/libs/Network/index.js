@@ -45,6 +45,14 @@ function processRequest(request) {
         .finally(() => clearTimeout(timerId));
 }
 
+/**
+ * This method will get any persisted requests and fire them off in parallel to retry them.
+ * If we get any jsonCode besides 407 the request is a success. It doesn't make sense to
+ * continually retry things that have returned a response. However, we can retry any requests
+ * with known networking errors like "Failed to fetch".
+ *
+ * @returns {Promise}
+ */
 function processPersistedRequestsQueue() {
     const persistedRequests = NetworkRequestQueue.getPersistedRequests();
 
@@ -55,17 +63,28 @@ function processPersistedRequestsQueue() {
 
     const tasks = _.map(persistedRequests, request => processRequest(request)
         .then((response) => {
-            if (response.jsonCode !== CONST.HTTP_STATUS_CODE.SUCCESS) {
-                throw new Error(`Persisted request failed due to jsonCode: ${response.jsonCode}`);
-            }
-
+            getLogger().info('Persisted optimistic request returned a valid jsonCode. Not retrying.');
+            onResponse({
+                ...request,
+                resolve: request.resolve || Promise.resolve(),
+                reject: request.reject || Promise.resolve(),
+            }, response);
             NetworkRequestQueue.removeRetryableRequest(request);
         })
         .catch((error) => {
-            const retryCount = NetworkRequestQueue.incrementRetries(request);
-            getLogger().info('Persisted request failed', false, {retryCount, command: request.command, error: error.message});
-            if (retryCount >= CONST.NETWORK.MAX_REQUEST_RETRIES) {
-                // Request failed too many times removing from persisted storage
+            // If we are catching a known network error like "Failed to fetch" allow this request to be retried
+            if (error === CONST.NETWORK_ERROR.FAILED_TO_FETCH) {
+                const retryCount = NetworkRequestQueue.incrementRetries(request);
+                getLogger().info('Persisted request failed', false, {retryCount, command: request.command, error: error.message});
+                if (retryCount >= CONST.NETWORK.MAX_REQUEST_RETRIES) {
+                    // Request failed too many times removing from persisted storage
+                    NetworkRequestQueue.removeRetryableRequest(request);
+                }
+            } else {
+                getLogger().alert(`${CONST.ERROR.ENSURE_BUGBOT} unknown error while retrying persisted request`, {
+                    command: request.command,
+                    error: error.message,
+                });
                 NetworkRequestQueue.removeRetryableRequest(request);
             }
         }));
@@ -229,7 +248,7 @@ function processNetworkRequestQueue() {
                 const shouldRetry = lodashGet(queuedRequest, 'data.shouldRetry');
                 if (shouldRetry && error.name !== CONST.ERROR.REQUEST_CANCELLED) {
                     const retryCount = NetworkRequestQueue.incrementRetries(queuedRequest);
-                    getLogger().info('A retrieable request failed', false, {
+                    getLogger().info('A retryable request failed', false, {
                         retryCount,
                         command: queuedRequest.command,
                         error: error.message,
@@ -329,7 +348,7 @@ function unpauseRequestQueue() {
  * Non-cancellable requests like Log would not be cleared
  */
 function clearRequestQueue() {
-    networkRequestQueue = _.filter(networkRequestQueue, r => !r.data.canCancel);
+    networkRequestQueue = _.filter(networkRequestQueue, request => !request.data.canCancel);
     HttpUtils.cancelPendingRequests();
 }
 
